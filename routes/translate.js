@@ -3,9 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
-const mammoth = require('mammoth');
-const xlsx = require('xlsx');
-const pptxParse = require('pptx-parse');
+const officeParser = require('officeparser');
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -28,22 +26,8 @@ router.post('/convert-file', upload.single('file'), async (req, res) => {
   const ext = path.extname(file.originalname);
   const filePath = path.join(__dirname, '..', file.path);
 
-  let content = '';
   try {
-    if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ path: filePath });
-      content = result.value;
-    } else if (ext === '.xlsx') {
-      const workbook = xlsx.readFile(filePath);
-      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      content = xlsx.utils.sheet_to_csv(firstSheet);
-    } else if (ext === '.pptx') {
-      const parsed = await pptxParse.parse(filePath);
-      content = parsed.texts.join('\n\n');
-    } else {
-      return res.status(400).json({ error: 'Fayl turi qo‘llab-quvvatlanmaydi' });
-    }
-
+    const content = await officeParser.parseOfficeAsync(filePath);
     const converted = convertText(content);
     const outputPath = path.join(__dirname, '..', 'converted', `${Date.now()}_converted.txt`);
     fs.writeFileSync(outputPath, converted, 'utf8');
