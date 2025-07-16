@@ -14,7 +14,7 @@
     "mammoth": "^1.5.2",
     "multer": "^1.4.5-lts.1",
     "xlsx": "^0.18.5",
-    "pptx-parse": "^1.0.3",
+    "pptx-parse": "^1.0.2",
     "body-parser": "^1.20.2"
   }
 }
