@@ -3,12 +3,19 @@ from docx import Document
 from pptx import Presentation
 from openpyxl import load_workbook
 
-from .text import convert_text
+from .text import convert_text  # Avtomatik Kiril ↔ Lotin funksiyasi
 
 def convert_docx(file_path, output_folder):
     doc = Document(file_path)
     for para in doc.paragraphs:
         para.text = convert_text(para.text)
+
+    # Shuningdek, jadval hujayralarini ham tarjima qilish
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                cell.text = convert_text(cell.text)
+
     output_path = os.path.join(output_folder, os.path.basename(file_path))
     doc.save(output_path)
     return output_path
@@ -21,6 +28,7 @@ def convert_pptx(file_path, output_folder):
                 for para in shape.text_frame.paragraphs:
                     for run in para.runs:
                         run.text = convert_text(run.text)
+
     output_path = os.path.join(output_folder, os.path.basename(file_path))
     pres.save(output_path)
     return output_path
