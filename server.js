@@ -1,126 +1,72 @@
 const express = require('express');
-const cors = require('cors');
+const router = express.Router();
 const multer = require('multer');
 const fs = require('fs');
 const path = require('path');
 const mammoth = require('mammoth');
-const XLSX = require('xlsx');
-const { v4: uuidv4 } = require('uuid');
+const xlsx = require('xlsx');
+const { parsePptx } = require('pptx-parser');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-app.use('/converted', express.static(path.join(__dirname, 'converted')));
-
+// Upload config
 const upload = multer({ dest: 'uploads/' });
 
-// === 1. Kiril-Lotin konvertor funksiyasi ===
+// === Kiril ↔ Lotin converter ===
+const latinToCyrillic = (text) => {
+  // oddiy misol uchun
+  return text.replace(/sh/g, 'ш').replace(/o/g, 'о');
+};
+const cyrillicToLatin = (text) => {
+  return text.replace(/ш/g, 'sh').replace(/о/g, 'o');
+};
 
-function transliterate(text) {
-  const rules = [
-    // Qo‘shimcha harflar
-    [/Yo/g, 'Yo'], [/yo/g, 'yo'],
-    [/Yu/g, 'Yu'], [/yu/g, 'yu'],
-    [/Ya/g, 'Ya'], [/ya/g, 'ya'],
-    [/Ch/g, 'Ch'], [/ch/g, 'ch'],
-    [/Sh/g, 'Sh'], [/sh/g, 'sh'],
-    [/Gʻ/g, "Gʻ"], [/gʻ/g, "gʻ"], [/ʼ/g, "ʼ"], [/‘/g, "ʼ"], [/`/g, "ʼ"],
-
-    // Qolgan harflar (oddiy almashtirishlar)
-    [/А/g, 'A'], [/а/g, 'a'],
-    [/Б/g, 'B'], [/б/g, 'b'],
-    [/В/g, 'V'], [/в/g, 'v'],
-    [/Г/g, 'G'], [/г/g, 'g'],
-    [/Д/g, 'D'], [/д/g, 'd'],
-    [/Е/g, 'E'], [/е/g, 'e'],
-    [/Ж/g, 'J'], [/ж/g, 'j'],
-    [/З/g, 'Z'], [/з/g, 'z'],
-    [/И/g, 'I'], [/и/g, 'i'],
-    [/Й/g, 'Y'], [/й/g, 'y'],
-    [/К/g, 'K'], [/к/g, 'k'],
-    [/Л/g, 'L'], [/л/g, 'l'],
-    [/М/g, 'M'], [/м/g, 'm'],
-    [/Н/g, 'N'], [/н/g, 'n'],
-    [/О/g, 'O'], [/о/g, 'o'],
-    [/П/g, 'P'], [/п/g, 'p'],
-    [/Р/g, 'R'], [/р/g, 'r'],
-    [/С/g, 'S'], [/с/g, 's'],
-    [/Т/g, 'T'], [/т/g, 't'],
-    [/У/g, 'U'], [/у/g, 'u'],
-    [/Ф/g, 'F'], [/ф/g, 'f'],
-    [/Х/g, 'X'], [/х/g, 'x'],
-    [/Ц/g, 'Ts'], [/ц/g, 'ts'],
-    [/Э/g, 'E'], [/э/g, 'e'],
-    [/Ь/g, ''],   [/ь/g, ''],
-    [/Ъ/g, ''],   [/ъ/g, ''],
-  ];
-
-  for (const [regex, rep] of rules) {
-    text = text.replace(regex, rep);
-  }
-
-  return text;
+function convertText(text) {
+  const isCyrillic = /[а-яА-Я]/.test(text);
+  return isCyrillic ? cyrillicToLatin(text) : latinToCyrillic(text);
 }
 
-// === 2. Matn konvertatsiya endpoint ===
-
-app.post('/api/convert-text', (req, res) => {
+// === POST /api/convert-text ===
+router.post('/convert-text', (req, res) => {
   const { text } = req.body;
-  if (!text) return res.status(400).json({ error: "Matn yo'q" });
+  if (!text) return res.status(400).json({ error: 'Matn yo‘q' });
 
-  const converted = transliterate(text);
+  const converted = convertText(text);
   res.json({ converted });
 });
 
-// === 3. Fayl yuklab konvertatsiya qilish ===
-
-app.post('/api/convert-file', upload.single('file'), async (req, res) => {
+// === POST /api/convert-file ===
+router.post('/convert-file', upload.single('file'), async (req, res) => {
   const file = req.file;
   const ext = path.extname(file.originalname);
-  const id = uuidv4();
-  const outputPath = path.join(__dirname, 'converted', `${id}${ext}`);
+  const filePath = path.join(__dirname, '..', file.path);
 
+  let content = '';
   try {
     if (ext === '.docx') {
-      const result = await mammoth.extractRawText({ path: file.path });
-      const converted = transliterate(result.value);
-      fs.writeFileSync(outputPath, converted, 'utf-8');
+      const result = await mammoth.extractRawText({ path: filePath });
+      content = result.value;
     } else if (ext === '.xlsx') {
-      const workbook = XLSX.readFile(file.path);
-      const sheetNames = workbook.SheetNames;
-
-      sheetNames.forEach(sheet => {
-        const ws = workbook.Sheets[sheet];
-        for (const cell in ws) {
-          if (cell[0] !== '!') {
-            ws[cell].v = transliterate(String(ws[cell].v));
-          }
-        }
-      });
-
-      XLSX.writeFile(workbook, outputPath);
+      const workbook = xlsx.readFile(filePath);
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      content = xlsx.utils.sheet_to_csv(firstSheet);
     } else if (ext === '.pptx') {
-      // oddiy .pptx ishlov berish qo‘llab-quvvatlanmaydi (PowerPoint parsing murakkabroq)
-      return res.status(400).json({ error: ".pptx fayllar hozircha qo‘llab-quvvatlanmaydi." });
+      const slides = await parsePptx(filePath);
+      content = slides.map(s => s.text).join('\n\n');
     } else {
-      return res.status(400).json({ error: "Noto‘g‘ri fayl turi." });
+      return res.status(400).json({ error: 'Fayl turi qo‘llab-quvvatlanmaydi' });
     }
 
-    const downloadUrl = `/converted/${path.basename(outputPath)}`;
-    res.json({ downloadUrl });
+    const converted = convertText(content);
+    const outputPath = path.join(__dirname, '..', 'converted', `${Date.now()}_converted.txt`);
+    fs.writeFileSync(outputPath, converted, 'utf8');
 
+    const url = `${req.protocol}://${req.get('host')}/converted/${path.basename(outputPath)}`;
+    res.json({ downloadUrl: url });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Xatolik yuz berdi." });
+    res.status(500).json({ error: 'O‘girishda xatolik yuz berdi' });
   } finally {
-    fs.unlinkSync(file.path); // vaqtinchalik yuklangan faylni o‘chir
+    fs.unlinkSync(filePath);
   }
 });
 
-// === Serverni ishga tushirish ===
-
-app.listen(PORT, () => {
-  console.log(`✅ Server ishga tushdi: http://localhost:${PORT}`);
-});
+module.exports = router;
