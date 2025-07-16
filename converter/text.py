@@ -1,4 +1,8 @@
-def convert_text(text):
+def is_cyrillic(text):
+    """Matnda kirillcha harflar borligini aniqlash"""
+    return any('а' <= ch <= 'я' or 'А' <= ch <= 'Я' or ch in "ҚқҒғЎўҲҳЁё" for ch in text)
+
+def kiril_to_lotin(text):
     mapping = {
         "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "j", "з": "z", "и": "i",
         "й": "y", "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t",
@@ -9,6 +13,27 @@ def convert_text(text):
         "У": "U", "Ф": "F", "Х": "X", "Ц": "Ts", "Ч": "Ch", "Ш": "Sh", "Щ": "Sh", "Ъ": "", "Ы": "I", "Ь": "",
         "Э": "E", "Ю": "Yu", "Я": "Ya", "Ғ": "G‘", "Қ": "Q", "Ў": "O‘", "Ҳ": "H"
     }
-    for cyrillic, latin in mapping.items():
-        text = text.replace(cyrillic, latin)
+    for cyr, lat in mapping.items():
+        text = text.replace(cyr, lat)
     return text
+
+def lotin_to_kiril(text):
+    replacements = [
+        ("sh", "ш"), ("ch", "ч"), ("yo", "ё"), ("yu", "ю"), ("ya", "я"), ("o‘", "ў"), ("g‘", "ғ"),
+        ("Sh", "Ш"), ("Ch", "Ч"), ("Yo", "Ё"), ("Yu", "Ю"), ("Ya", "Я"), ("O‘", "Ў"), ("G‘", "Ғ"),
+        ("a", "а"), ("b", "б"), ("d", "д"), ("e", "е"), ("f", "ф"), ("g", "г"), ("h", "ҳ"), ("i", "и"),
+        ("j", "ж"), ("k", "к"), ("l", "л"), ("m", "м"), ("n", "н"), ("o", "о"), ("p", "п"), ("q", "қ"),
+        ("r", "р"), ("s", "с"), ("t", "т"), ("u", "у"), ("v", "в"), ("x", "х"), ("y", "й"), ("z", "з"),
+        ("A", "А"), ("B", "Б"), ("D", "Д"), ("E", "Е"), ("F", "Ф"), ("G", "Г"), ("H", "Ҳ"), ("I", "И"),
+        ("J", "Ж"), ("K", "К"), ("L", "Л"), ("M", "М"), ("N", "Н"), ("O", "О"), ("P", "П"), ("Q", "Қ"),
+        ("R", "Р"), ("S", "С"), ("T", "Т"), ("U", "У"), ("V", "В"), ("X", "Х"), ("Y", "Й"), ("Z", "З")
+    ]
+    for lat, cyr in replacements:
+        text = text.replace(lat, cyr)
+    return text
+
+def convert_text(text):
+    if is_cyrillic(text):
+        return kiril_to_lotin(text)
+    else:
+        return lotin_to_kiril(text)
