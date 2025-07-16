@@ -5,35 +5,24 @@ const fs = require('fs');
 const path = require('path');
 const mammoth = require('mammoth');
 const xlsx = require('xlsx');
-const { parsePptx } = require('pptx-parser');
+const pptxParse = require('pptx-parse');
 
-// Upload config
 const upload = multer({ dest: 'uploads/' });
 
-// === Kiril ↔ Lotin converter ===
-const latinToCyrillic = (text) => {
-  // oddiy misol uchun
-  return text.replace(/sh/g, 'ш').replace(/o/g, 'о');
-};
-const cyrillicToLatin = (text) => {
-  return text.replace(/ш/g, 'sh').replace(/о/g, 'o');
-};
-
+const latinToCyrillic = (text) => text.replace(/sh/g, 'ш').replace(/o/g, 'о');
+const cyrillicToLatin = (text) => text.replace(/ш/g, 'sh').replace(/о/g, 'o');
 function convertText(text) {
   const isCyrillic = /[а-яА-Я]/.test(text);
   return isCyrillic ? cyrillicToLatin(text) : latinToCyrillic(text);
 }
 
-// === POST /api/convert-text ===
 router.post('/convert-text', (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: 'Matn yo‘q' });
-
   const converted = convertText(text);
   res.json({ converted });
 });
 
-// === POST /api/convert-file ===
 router.post('/convert-file', upload.single('file'), async (req, res) => {
   const file = req.file;
   const ext = path.extname(file.originalname);
@@ -49,8 +38,8 @@ router.post('/convert-file', upload.single('file'), async (req, res) => {
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
       content = xlsx.utils.sheet_to_csv(firstSheet);
     } else if (ext === '.pptx') {
-      const slides = await parsePptx(filePath);
-      content = slides.map(s => s.text).join('\n\n');
+      const parsed = await pptxParse.parse(filePath);
+      content = parsed.texts.join('\n\n');
     } else {
       return res.status(400).json({ error: 'Fayl turi qo‘llab-quvvatlanmaydi' });
     }
